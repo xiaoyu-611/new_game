@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>约会选择小游戏</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: linear-gradient(135deg, #fff0f4, #ffe6ef);
+            font-family: "Microsoft Yahei", sans-serif;
+            padding: 50px 15px;
+            position: relative;
+            min-height: 100vh;
+        }
+
+        .game-box {
+            max-width: 500px;
+            margin: 0 auto;
+            background: #ffffffdd;
+            backdrop-filter: blur(8px);
+            padding: 40px;
+            border-radius: 18px;
+            box-shadow: 0 4px 20px rgba(200, 35, 80, 0.12);
+            text-align: center;
+            transition: opacity 0.3s;
+        }
+        .game-box.hide {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        h2 {
+            color: #c82350;
+            margin-bottom: 20px;
+            font-size: 26px;
+        }
+
+        .tip {
+            font-size: 17px;
+            color: #991b40;
+            margin-bottom: 10px;
+            transition: opacity 0.3s ease;
+        }
+        .emoji-show {
+            font-size: 36px;
+            margin-bottom: 20px;
+            min-height: 44px;
+            transition:
+                    opacity 0.25s ease,
+                    transform 0.25s ease;
+            transform: scale(1);
+        }
+        .emoji-show.active {
+            transform: scale(1.25);
+        }
+
+        .btn-wrap {
+            position: relative;
+            min-height: 260px;
+        }
+
+        button {
+            padding: 12px;
+            margin: 0;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: transform 0.3s ease, opacity 0.3s ease, left 0.3s ease, top 0.3s ease, background 0.2s;
+            position: absolute;
+            width: 180px;
+            top: 0;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        #btn1 {
+            background-color: #4080ff;
+            color: white;
+            left: calc(50% - 200px);
+            transform: scale(1);
+        }
+        #btn1:hover {
+            background-color: #2969d8;
+        }
+
+        #btn2 {
+            background-color: #f56c6c;
+            color: white;
+            left: calc(50% + 20px);
+            z-index: 2;
+        }
+        #btn2:hover {
+            background-color: #e04848;
+        }
+        .full-screen-btn{
+            position: fixed !important;
+            inset: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            border-radius: 0 !important;
+            font-size: 40px !important;
+            z-index: 9999 !important;
+            pointer-events: auto !important;
+        }
+    </style>
+</head>
+<body>
+<div class="game-box" id="gameBox">
+    <h2>约会邀请</h2>
+    <p class="tip" id="inviteText">有人向你发出约会邀请，你要怎么选择？</p>
+    <div class="emoji-show" id="emojiBox">😉</div>
+    <div class="btn-wrap">
+        <button id="btn1">不同意去约会</button>
+        <button id="btn2">同意</button>
+    </div>
+</div>
+
+<script>
+    const btn1 = document.getElementById("btn1");
+    const btn2 = document.getElementById("btn2");
+    const inviteEl = document.getElementById("inviteText");
+    const emojiBox = document.getElementById("emojiBox");
+    const box = document.querySelector(".btn-wrap");
+    const gameBox = document.getElementById("gameBox");
+
+    const inviteList = [
+        "有人向你发出约会邀请，你要怎么选择？",
+        "再考虑一下嘛乖乖，一起出去走走好不好？",
+        "听说新开了一家小店，要不要一起看看？",
+        "周末天气很好，要不要一起出门？",
+        "我准备了小礼物，愿意出来见一面吗？",
+        "就一小会儿，陪我出去逛逛可以吗？",
+        "真的不同意嘛~"
+    ];
+
+    const noTextList = [
+        "再等等",
+        "下次吧",
+        "还没想好",
+        "暂时不去啦",
+        "我再考虑下",
+        "不同意"
+    ];
+
+    let inviteIdx = 0;
+    let refuseStage = 0;
+    let finalStage = false;
+    let isClicking = false;
+
+    function getAgreeScale(stage) {
+        return 1 + stage * 0.16;
+    }
+
+    function getRefuseScale(stage) {
+        if (stage === 1) return 0.75;
+        if (stage === 2) return 0.55;
+        return 0.5;
+    }
+
+    function getRefuseOpacity(stage) {
+        if (stage === 7) return 0.65;
+        if (stage === 8) return 0.35;
+        if (stage === 9) return 0.12;
+        return 1;
+    }
+
+    function moveButtons(stage, scale1, scale2) {
+        const wrapW = box.clientWidth;
+        const wrapH = box.clientHeight;
+        const baseW = 180;
+        const baseH = 44;
+
+        const w1 = baseW * scale1;
+        const h1 = baseH * scale1;
+        const w2 = baseW * scale2;
+        const h2 = baseH * scale2;
+
+        const r1 = Math.sqrt(w1 * w1 + h1 * h1) / 2;
+        const r2 = Math.sqrt(w2 * w2 + h2 * h2) / 2;
+        const minDist = (r1 + r2) * 1.15;
+
+        let cx1, cy1, cx2, cy2;
+        let count = 0;
+        const maxTry = 2000;
+        let ok = false;
+
+        while (count < maxTry) {
+            const x1 = Math.random() * (wrapW - w1);
+            const y1 = Math.random() * (wrapH - h1);
+            const x2 = Math.random() * (wrapW - w2);
+            const y2 = Math.random() * (wrapH - h2);
+
+            cx1 = x1 + w1 / 2;
+            cy1 = y1 + h1 / 2;
+            cx2 = x2 + w2 / 2;
+            cy2 = y2 + h2 / 2;
+
+            const dx = cx1 - cx2;
+            const dy = cy1 - cy2;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
+            if (dist >= minDist) {
+                ok = true;
+                btn1.style.left = x1 + "px";
+                btn1.style.top = y1 + "px";
+                btn2.style.left = x2 + "px";
+                btn2.style.top = y2 + "px";
+                break;
+            }
+            count++;
+        }
+
+        if (!ok) {
+            btn1.style.left = "10px";
+            btn1.style.top = "20px";
+            btn2.style.left = (wrapW - w2 - 10) + "px";
+            btn2.style.top = "100px";
+        }
+    }
+
+    function changeEmoji(text, stayActive = false) {
+        emojiBox.style.opacity = 0;
+        setTimeout(() => {
+            emojiBox.innerText = text;
+            emojiBox.style.opacity = 1;
+            if (stayActive) {
+                emojiBox.classList.add("active");
+            } else {
+                emojiBox.classList.remove("active");
+            }
+        }, 120);
+    }
+
+    // 松手回到轮回默认表情
+    function resetEmoji() {
+        if(finalStage) changeEmoji("🥺", false);
+        else changeEmoji("😉", false);
+    }
+
+    function onTouchStartBtn1(){ changeEmoji("😭", true); }
+    function onTouchEndBtn1(){ resetEmoji(); }
+    function onTouchStartBtn2(){ changeEmoji("😁", true); }
+    function onTouchEndBtn2(){ resetEmoji(); }
+
+    btn1.addEventListener("mouseenter", () => changeEmoji("😭", true))
+    btn1.addEventListener("mouseleave", resetEmoji)
+    btn2.addEventListener("mouseenter", () => changeEmoji("😁", true))
+    btn2.addEventListener("mouseleave", resetEmoji)
+
+    btn1.addEventListener("touchstart", onTouchStartBtn1)
+    btn1.addEventListener("touchend", onTouchEndBtn1)
+    btn1.addEventListener("touchcancel", onTouchEndBtn1)
+
+    btn2.addEventListener("touchstart", onTouchStartBtn2)
+    btn2.addEventListener("touchend", onTouchEndBtn2)
+    btn2.addEventListener("touchcancel", onTouchEndBtn2)
+
+    function gotoSuccess(){
+        location.href = "success2.html";
+    }
+    btn2.addEventListener("click", gotoSuccess);
+
+    btn1.addEventListener("click", async function () {
+        if (isClicking) return;
+        isClicking = true;
+        inviteEl.style.opacity = 0;
+        await new Promise(res => setTimeout(res, 250));
+
+        if (!finalStage) {
+            inviteIdx++;
+            inviteEl.innerText = inviteList[inviteIdx];
+            btn1.innerText = noTextList[inviteIdx % noTextList.length];
+
+            if (inviteIdx >= inviteList.length - 1) {
+                finalStage = true;
+                refuseStage = 1;
+                btn1.innerText = "不同意";
+                // ✅ 进入轮回立刻切换为🥺
+                changeEmoji("🥺", false);
+            }
+        } else {
+            refuseStage++;
+            btn1.innerText = "不同意";
+        }
+        inviteEl.style.opacity = 1;
+
+        if (finalStage) {
+            const scale1 = getRefuseScale(refuseStage);
+            const scale2 = getAgreeScale(refuseStage);
+            const opacity1 = getRefuseOpacity(refuseStage);
+
+            btn1.style.transform = `scale(${scale1})`;
+            btn2.style.transform = `scale(${scale2})`;
+            btn1.style.opacity = opacity1;
+
+            if (refuseStage >= 4 && refuseStage <= 6) {
+                moveButtons(refuseStage, scale1, scale2);
+            }
+
+            if (refuseStage === 10) {
+                btn1.style.display = "none";
+                emojiBox.style.opacity = 0;
+                emojiBox.classList.remove("active");
+                btn2.innerText = "同意去约会";
+                btn2.removeEventListener("touchstart", onTouchStartBtn2);
+                btn2.removeEventListener("touchend", onTouchEndBtn2);
+                btn2.removeEventListener("touchcancel", onTouchEndBtn2);
+                document.body.appendChild(btn2);
+                btn2.classList.add("full-screen-btn");
+                gameBox.classList.add("hide");
+            }
+        }
+        setTimeout(()=>isClicking = false, 300);
+    });
+</script>
+</body>
+</html>
